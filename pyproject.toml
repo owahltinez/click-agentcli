@@ -1,0 +1,49 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+# The distribution name differs from the import name: PyPI rejects
+# "agentcli" as too similar to the existing "agent-cli". Importers still
+# write `import agentcli`.
+#
+# Dependents must name the distribution, not the import, in both their
+# dependencies and their [tool.uv.sources] key.
+name = "click-agentcli"
+version = "0.1.0"
+description = "Shared CLI conventions for agent-facing tools: exit codes, JSON output, skill installation, and the in-binary guide."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+authors = [{ name = "owahltinez" }]
+keywords = ["click", "cli", "agent", "skill", "json"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries",
+    "Topic :: Utilities",
+]
+dependencies = ["click>=8.1"]
+
+[project.urls]
+Homepage = "https://github.com/owahltinez/click-agentcli"
+
+[dependency-groups]
+dev = ["pytest>=8.0", "ruff>=0.6"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/agentcli"]
+
+[tool.pytest.ini_options]
+testpaths = ["src/agentcli"]
+python_files = ["*_test.py"]
+
+[tool.ruff]
+line-length = 79
