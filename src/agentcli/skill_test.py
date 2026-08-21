@@ -4,8 +4,6 @@ No test may touch a real `~/.agents` or `~/.claude`, so every one of them runs
 against a `tmp_path` home and a fake installed tool.
 """
 
-from __future__ import annotations
-
 import importlib
 import json
 import shutil

@@ -10,8 +10,6 @@ problem, and a tool that solves it locally is a tool the next one forgets to
 copy.
 """
 
-from __future__ import annotations
-
 import sys
 from collections.abc import Sequence
 from typing import Any, Literal, NoReturn, overload

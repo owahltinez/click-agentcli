@@ -10,8 +10,6 @@
 with a nonzero status; only the code differs per class.
 """
 
-from __future__ import annotations
-
 import click
 
 # Click exits 2 for its own parse failures, which this table documents as a

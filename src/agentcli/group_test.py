@@ -1,7 +1,5 @@
 """A bad flag must still honour `--json`, before click has parsed it."""
 
-from __future__ import annotations
-
 import json
 
 import click

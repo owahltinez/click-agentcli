@@ -11,8 +11,6 @@ ranks, instead of special-casing each tool. Everything kind-specific goes under
 `detail`, which nothing shared ever reads.
 """
 
-from __future__ import annotations
-
 from collections.abc import Callable
 from typing import Any
 

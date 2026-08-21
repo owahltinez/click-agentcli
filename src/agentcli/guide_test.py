@@ -1,7 +1,5 @@
 """The manual ships in the binary, so it cannot go stale."""
 
-from __future__ import annotations
-
 from click.testing import CliRunner
 
 from agentcli.guide import guide_command

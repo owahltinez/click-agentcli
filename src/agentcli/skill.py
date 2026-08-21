@@ -10,8 +10,6 @@ Parameterised by skill name and package because the two hand-written copies
 this replaces had already drifted apart in exactly the guards that matter.
 """
 
-from __future__ import annotations
-
 import shutil
 from collections.abc import Iterable
 from importlib import resources

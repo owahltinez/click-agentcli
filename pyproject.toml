@@ -13,7 +13,7 @@ name = "click-agentcli"
 version = "0.1.0"
 description = "Shared CLI conventions for agent-facing tools: exit codes, JSON output, skill installation, and the in-binary guide."
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.13"
 license = "MIT"
 authors = [{ name = "owahltinez" }]
 keywords = ["click", "cli", "agent", "skill", "json"]
@@ -24,9 +24,8 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Software Development :: Libraries",
     "Topic :: Utilities",
 ]

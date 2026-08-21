@@ -1,7 +1,5 @@
 """The contract two independent tools have to agree on without talking."""
 
-from __future__ import annotations
-
 import itertools
 
 import click

@@ -15,8 +15,6 @@ shaped object on failure -- makes every caller special-case both, which is how
 four tools end up with four contracts.
 """
 
-from __future__ import annotations
-
 import json
 from collections.abc import Callable, Iterable
 from typing import Any

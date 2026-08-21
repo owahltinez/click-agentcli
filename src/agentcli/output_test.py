@@ -1,7 +1,5 @@
 """One JSON object on stdout, or human text. Never both."""
 
-from __future__ import annotations
-
 import json
 
 import click

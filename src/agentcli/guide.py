@@ -5,8 +5,6 @@ skill installed once goes stale, while the guide is upgraded with the package
 that implements it.
 """
 
-from __future__ import annotations
-
 import click
 
 
