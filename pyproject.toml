@@ -10,7 +10,7 @@ build-backend = "hatchling.build"
 # Dependents must name the distribution, not the import, in both their
 # dependencies and their [tool.uv.sources] key.
 name = "click-agentcli"
-version = "0.3.0"
+version = "0.4.0"
 description = "Shared CLI conventions for agent-facing tools: exit codes, JSON output, skill installation, and the in-binary guide."
 readme = "README.md"
 requires-python = ">=3.12"
