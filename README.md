@@ -150,7 +150,7 @@ The stable public surface is:
 ## Candidate contract
 
 Candidate sources answer the same question: filter things someone could eat by
-per-serving macros, then rank them with provenance. Recipes and restaurant
+per-serving figures, then rank them with provenance. Recipes and restaurant
 meals therefore emit the same record:
 
 ```json
@@ -172,11 +172,15 @@ Sources accept `macro_options` (`--max-kcal`, `--min-protein`) and use `rank`.
 The rank key is unrounded protein per 100 kcal, then absolute protein, then
 name. `--max-kcal 0` is valid because zero-calorie records exist.
 
-`per_serving` contains only macros actually known by the source. Missing is
-never filled with zero. `complete` exposes whether the full shape is present;
-a candidate missing a requested filter macro is excluded and returned in the
-source's `unverifiable` or equivalent bucket. Every source emits that bucket,
-even when its loader makes it structurally empty.
+`per_serving` contains only figures actually known by the source, whatever
+they are — a source that also publishes fibre or sodium puts them here.
+Missing is never filled with zero. `candidate` takes the keys that count as a
+full set from its caller as `required`, because this package does not know what
+a macro is; callers answering the same question share that tuple so `complete`
+keeps meaning the same thing across them. A candidate missing a requested
+filter figure is excluded and returned in the source's `unverifiable` or
+equivalent bucket. Every source emits that bucket, even when its loader makes
+it structurally empty.
 
 This contract is the reason the tools can be independent packages: an
 orchestrator can merge and rank results without knowing which source answered.

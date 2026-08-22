@@ -16,8 +16,6 @@ from typing import Any
 
 import click
 
-MACRO_KEYS = ("kcal", "protein", "fat", "carbs")
-
 KINDS = ("recipe", "meal")
 
 
@@ -27,29 +25,34 @@ def candidate(
     identifier: str,
     name: str,
     per_serving: dict[str, float | None],
+    required: tuple[str, ...],
     detail: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """One comparable option, per serving.
 
-    `per_serving` carries every macro the source published and omits the rest.
-    A macro is never defaulted to zero to fill the shape: a dish whose fat was
-    never measured is not a fat-free dish, and `complete` is what tells them
-    apart.
+    `per_serving` carries every figure the source published, whatever they are,
+    and omits the rest. A figure is never defaulted to zero to fill the shape:
+    a dish whose fat was never measured is not a fat-free dish, and `complete`
+    is what tells them apart.
+
+    `required` is the caller's -- which figures it considers a full set. This
+    module does not know what a macro is, and a source that publishes fibre or
+    sodium should be able to say so without asking permission here. Callers
+    that answer the same question share the tuple so `complete` keeps meaning
+    the same thing across them.
     """
     if kind not in KINDS:
         raise ValueError(f"unknown candidate kind: {kind}")
 
-    macros = {
-        key: per_serving[key]
-        for key in MACRO_KEYS
-        if per_serving.get(key) is not None
+    published = {
+        key: value for key, value in per_serving.items() if value is not None
     }
     return {
         "kind": kind,
         "id": identifier,
         "name": name,
-        "per_serving": macros,
-        "complete": len(macros) == len(MACRO_KEYS),
+        "per_serving": published,
+        "complete": all(key in published for key in required),
         "detail": detail or {},
     }
 
@@ -76,15 +79,15 @@ def matches(
 ) -> bool:
     """Whether a candidate provably satisfies the constraints.
 
-    A candidate missing the macro a filter asks about is excluded, because it
+    A candidate missing the figure a filter asks about is excluded, because it
     cannot be shown to pass. Callers report those separately rather than
     dropping them silently — "no results" and "three results I could not check"
     are different answers.
     """
-    macros = record["per_serving"]
-    kcal, protein = macros.get("kcal"), macros.get("protein")
+    published = record["per_serving"]
+    kcal, protein = published.get("kcal"), published.get("protein")
 
-    # A missing macro fails the filter that asks about it rather than being
+    # A missing figure fails the filter that asks about it rather than being
     # treated as zero, which would pass every ceiling and fail every floor.
     over = max_kcal is not None and (kcal is None or kcal > max_kcal)
     under = min_protein is not None and (

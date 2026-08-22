@@ -2,7 +2,6 @@
 
 from agentcli.candidates import (
     KINDS,
-    MACRO_KEYS,
     candidate,
     macro_options,
     matches,
@@ -22,7 +21,6 @@ from agentcli.skill import skill_group
 
 __all__ = [
     "KINDS",
-    "MACRO_KEYS",
     "AssertionFailure",
     "JsonAwareGroup",
     "RemoteError",

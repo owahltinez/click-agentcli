@@ -17,6 +17,10 @@ from agentcli.candidates import (
 FULL = {"kcal": 384.2, "protein": 31.5, "fat": 12.1, "carbs": 38.4}
 PARTIAL = {"kcal": 540.0, "protein": 45.8, "fat": None, "carbs": None}
 
+# What the nutrition tools happen to require. This module does not define it --
+# it is a caller's tuple, and these tests stand in for a caller.
+REQUIRED = ("kcal", "protein", "fat", "carbs")
+
 
 def make(kind: str = "recipe", name: str = "Thing", **macros: object) -> dict:
     return candidate(
@@ -24,13 +28,18 @@ def make(kind: str = "recipe", name: str = "Thing", **macros: object) -> dict:
         identifier=name.lower(),
         name=name,
         per_serving=macros or FULL,
+        required=REQUIRED,
     )
 
 
 def test_an_unpublished_macro_is_omitted_rather_than_zeroed() -> None:
     """A dish whose fat was never measured is not a fat-free dish."""
     partial = candidate(
-        kind="meal", identifier="x", name="Bowl", per_serving=PARTIAL
+        kind="meal",
+        identifier="x",
+        name="Bowl",
+        per_serving=PARTIAL,
+        required=REQUIRED,
     )
 
     assert partial["per_serving"] == {"kcal": 540.0, "protein": 45.8}
@@ -38,9 +47,42 @@ def test_an_unpublished_macro_is_omitted_rather_than_zeroed() -> None:
     assert partial["complete"] is False
 
 
-def test_complete_means_all_four_macros_present() -> None:
+def test_complete_means_every_figure_the_caller_required() -> None:
     assert make()["complete"] is True
     assert make(kcal=1.0, protein=1.0, fat=1.0)["complete"] is False
+
+
+def test_a_figure_the_caller_did_not_require_is_still_carried() -> None:
+    """A source publishing fibre should not have to ask permission here.
+
+    Filtering to a fixed set of keys meant a tool that had resolved a fibre
+    figure could not publish it, and an agent following the documented rule
+    -- look for it in `per_serving` -- concluded it was unavailable.
+    """
+    record = candidate(
+        kind="recipe",
+        identifier="soup",
+        name="Soup",
+        per_serving={**FULL, "dietary_fiber": 4.1, "sodium": 0.4},
+        required=REQUIRED,
+    )
+
+    assert record["per_serving"]["dietary_fiber"] == 4.1
+    assert record["per_serving"]["sodium"] == 0.4
+    assert record["complete"] is True
+
+
+def test_a_caller_requiring_less_is_complete_with_less() -> None:
+    """Two tools answer different questions; neither defines the other's set."""
+    record = candidate(
+        kind="meal",
+        identifier="x",
+        name="X",
+        per_serving={"kcal": 540.0, "protein": 45.8},
+        required=("kcal", "protein"),
+    )
+
+    assert record["complete"] is True
 
 
 def test_detail_is_where_the_kinds_differ() -> None:
@@ -50,6 +92,7 @@ def test_detail_is_where_the_kinds_differ() -> None:
         identifier="crust-margherita",
         name="Margherita",
         per_serving=FULL,
+        required=REQUIRED,
         detail={"restaurant": "Crust Pizza", "distance_km": 1.5},
     )
 
@@ -67,7 +110,13 @@ def test_detail_is_where_the_kinds_differ() -> None:
 def test_an_unknown_kind_is_refused() -> None:
     """A third kind is a decision, not something a caller slips in."""
     with pytest.raises(ValueError, match="unknown candidate kind"):
-        candidate(kind="snack", identifier="x", name="X", per_serving=FULL)
+        candidate(
+            kind="snack",
+            identifier="x",
+            name="X",
+            per_serving=FULL,
+            required=REQUIRED,
+        )
 
 
 @pytest.mark.parametrize(
@@ -102,7 +151,11 @@ def test_a_missing_macro_fails_the_filter_that_asks_about_it() -> None:
 
 def test_no_filters_matches_everything_including_incomplete() -> None:
     partial = candidate(
-        kind="meal", identifier="x", name="Bowl", per_serving=PARTIAL
+        kind="meal",
+        identifier="x",
+        name="Bowl",
+        per_serving=PARTIAL,
+        required=REQUIRED,
     )
 
     assert matches(partial) is True
@@ -170,12 +223,14 @@ def test_a_published_zero_is_not_a_missing_measurement() -> None:
         identifier="coffee",
         name="Black Coffee",
         per_serving={"kcal": 0.0, "protein": 0.0, "fat": 0.0, "carbs": 0.0},
+        required=REQUIRED
     )
     unmeasured = candidate(
         kind="meal",
         identifier="mystery",
         name="Mystery",
         per_serving={"protein": 0.0, "fat": 0.0, "carbs": 0.0},
+        required=REQUIRED
     )
 
     assert measured["per_serving"]["kcal"] == 0.0
