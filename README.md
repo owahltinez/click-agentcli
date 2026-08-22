@@ -4,7 +4,97 @@ Shared conventions for command-line tools whose primary callers are agents.
 It owns no food domain: it owns predictable errors, JSON output, skills,
 in-binary guides, and the candidate record used for composition.
 
-## Install and test
+## Use it in a package
+
+Install the distribution (the import name remains `agentcli`):
+
+```sh
+uv add click-agentcli
+```
+
+Register the shared output, guide, and skill commands on a Click CLI:
+
+```python
+import click
+
+from agentcli import (
+    JsonAwareGroup,
+    emit,
+    guide_command,
+    json_option,
+    skill_group,
+)
+
+GUIDE = """# acme guide
+
+Use `acme hello` to print a greeting.
+"""
+
+
+@click.group(cls=JsonAwareGroup)
+def cli() -> None:
+    """Acme's agent-facing CLI."""
+
+
+@cli.command()
+@json_option
+def hello(json_output: bool) -> None:
+    """Print a greeting."""
+    emit(
+        {"message": "hello"},
+        json_output=json_output,
+        human=lambda result: [result["message"]],
+    )
+
+
+cli.add_command(guide_command(GUIDE))
+cli.add_command(skill_group(name="acme", package="acme"))
+```
+
+The command has readable output for people and one stable document for agents:
+
+```console
+$ acme hello
+hello
+$ acme hello --json
+{"ok":true,"data":{"message":"hello"}}
+$ acme guide
+# acme guide
+...
+$ acme skill install
+copied  /home/me/.agents/skills/acme
+```
+
+Declare the entry point and ship the skill inside the import package. For
+Hatchling, a project-root `SKILL.md` can be mapped into the required wheel
+location like this:
+
+```toml
+[project.scripts]
+acme = "acme.cli:cli"
+
+[tool.hatch.build.targets.wheel.force-include]
+"SKILL.md" = "acme/skills/acme/SKILL.md"
+```
+
+`skill_group(name="acme", package="acme")` expects an installed wheel to
+contain `acme/skills/acme/SKILL.md`. The same file may stay at the repository
+root for source-checkout use. Its frontmatter name must match the skill name:
+
+```markdown
+---
+name: acme
+description: Use Acme from an agent.
+---
+
+Run `acme guide` for the complete manual.
+```
+
+Add `@json_option` to each command that supports structured output and call
+`emit` once with both the data and its human renderer. `JsonAwareGroup` then
+keeps parse failures structured when `--json` was requested.
+
+## Develop this package
 
 ```sh
 uv sync --project .
