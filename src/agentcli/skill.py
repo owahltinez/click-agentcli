@@ -96,9 +96,9 @@ def _primary_target(destination: Path | None, home: Path, name: str) -> Path:
 def _is_our_skill(target: Path, *, name: str) -> bool:
     """Does this directory actually hold the skill we installed?
 
-    A broken symlink counts. `--link` into a `uvx` environment dies on
-    `uv cache prune`, and refusing to clean up exactly that wreckage would be
-    perverse -- the directory is still one this tool created.
+    A broken symlink counts. Older versions could install one, and refusing to
+    clean up exactly that wreckage would be perverse -- the directory is still
+    one this tool created.
     """
     manifest = target / "SKILL.md"
     if manifest.is_symlink() and not manifest.exists():
@@ -151,14 +151,15 @@ def _refusal(target: Path, *, name: str) -> str | None:
     return None
 
 
-def _place(source: Path, target: Path, *, name: str, link: bool) -> str:
+def _place(source: Path, target: Path, *, name: str) -> str:
     """Place SKILL.md into a skill directory of its own.
 
-    Copying is the default because a link points into the environment this CLI
-    was installed into: run under `uvx`, that is a prunable cache, so the skill
-    works today and vanishes after `uv cache prune`. Copying costs a stale
-    skill after an upgrade, which is cheap here -- the skill is a router, and
-    the manual it routes to (`<tool> guide`) ships in the binary.
+    Always a copy. A link points into the environment this CLI was installed
+    into, and that path is not stable: it carries the interpreter version, so
+    an environment rebuilt on another Python leaves a dangling link and the
+    skill silently disappears. Copying costs a stale skill after an upgrade,
+    which is the louder failure and the cheaper one -- the skill is a router,
+    and the manual it routes to (`<tool> guide`) ships in the binary.
     """
     refusal = _refusal(target, name=name)
     if refusal is not None:
@@ -167,23 +168,9 @@ def _place(source: Path, target: Path, *, name: str, link: bool) -> str:
     if target.exists() or target.is_symlink():
         _remove(target)
 
-    # The directory is always real, and named for the skill as the spec
-    # requires; only its contents are ever linked.
+    # The directory is named for the skill, as the spec requires.
     target.mkdir(parents=True, exist_ok=True)
-    manifest = target / "SKILL.md"
-
-    if link:
-        try:
-            manifest.symlink_to(source)
-        except OSError as exc:
-            # Windows needs Developer Mode or admin rights for symlinks. A
-            # copy is a worse answer than a link but a much better one than
-            # a traceback.
-            click.echo(f"# symlink failed ({exc}); copying instead", err=True)
-        else:
-            return f"linked  {manifest} -> {source}"
-
-    shutil.copy2(source, manifest)
+    shutil.copy2(source, target / "SKILL.md")
     return f"copied  {target}"
 
 
@@ -235,8 +222,7 @@ def skill_group(*, name: str, package: str) -> click.Group:
 \b
   {name} skill install                       # everywhere it is wanted
   {name} skill install --to ~/.claude/skills # just this one
-  {name} skill install --to .agents/skills   # this repository only
-  {name} skill install --link                # track package upgrades""",
+  {name} skill install --to .agents/skills   # this repository only""",
     )
     @click.option(
         "--to",
@@ -244,19 +230,9 @@ def skill_group(*, name: str, package: str) -> click.Group:
         type=click.Path(file_okay=False, path_type=Path),
         help=target_help,
     )
-    @click.option(
-        "--link",
-        is_flag=True,
-        help="Symlink instead of copying, so package upgrades take effect "
-        "immediately. Only safe for a durable install and a private skills "
-        "directory: a link into a `uvx` environment dies on `uv cache "
-        "prune`, and one committed to a repository is broken for everyone "
-        "else. Re-running install is the portable way to refresh.",
-    )
     @click.option("--dry-run", is_flag=True, help=dry_run_help)
     def install_command(
         destination: Path | None,
-        link: bool,
         dry_run: bool,
     ) -> None:
         """Install the Agent Skill into an agent's skills directory.
@@ -291,7 +267,7 @@ def skill_group(*, name: str, package: str) -> click.Group:
                 continue
 
             try:
-                click.echo(_place(source, target, name=name, link=link))
+                click.echo(_place(source, target, name=name))
             except OSError as exc:
                 raise click.ClickException(
                     f"could not install into {target}: {exc.strerror or exc}"

@@ -139,8 +139,10 @@ The stable public surface is:
 - `JsonAwareGroup` for every consuming tool's top-level group.
 - `skill_group(name=..., package=...)` for `skill install`, `uninstall`, and
   `status`. Installation refuses an unrelated destination, recognises owned
-  broken symlinks, copies by default, and supports `--link`, `--to`, and
-  `--dry-run`. With no options it installs everywhere the skill is wanted
+  broken symlinks an older version left, always copies, and supports `--to`
+  and `--dry-run`. It never links: a link points into the environment, whose
+  path carries the interpreter version, so a rebuild elsewhere leaves the
+  skill silently absent rather than merely stale. With no options it installs everywhere the skill is wanted
   and refreshes its own earlier copies, so plain `install` is the whole
   job; a directory holding somebody else's skill is still refused.
 - `guide_command(text)` for a complete manual available without a network.

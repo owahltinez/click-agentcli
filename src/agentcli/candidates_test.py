@@ -223,14 +223,14 @@ def test_a_published_zero_is_not_a_missing_measurement() -> None:
         identifier="coffee",
         name="Black Coffee",
         per_serving={"kcal": 0.0, "protein": 0.0, "fat": 0.0, "carbs": 0.0},
-        required=REQUIRED
+        required=REQUIRED,
     )
     unmeasured = candidate(
         kind="meal",
         identifier="mystery",
         name="Mystery",
         per_serving={"protein": 0.0, "fat": 0.0, "carbs": 0.0},
-        required=REQUIRED
+        required=REQUIRED,
     )
 
     assert measured["per_serving"]["kcal"] == 0.0

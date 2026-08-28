@@ -138,13 +138,13 @@ def test_install_refreshes_our_own_copy(tool: Tool) -> None:
     assert (tool.shared() / "SKILL.md").read_text() == MANIFEST
 
 
-def test_install_link_makes_a_symlink(tool: Tool) -> None:
+def test_install_refuses_to_link(tool: Tool) -> None:
+    """A link points into the environment, whose path carries the interpreter
+    version, so a rebuild elsewhere leaves the skill silently absent."""
     result = tool.run("install", "--link")
 
-    assert result.exit_code == 0
-    manifest = tool.shared() / "SKILL.md"
-    assert manifest.is_symlink()
-    assert manifest.resolve() == tool.source.resolve()
+    assert result.exit_code != 0
+    assert "--link" in result.output
 
 
 def test_install_covers_detected_tools_without_a_flag(tool: Tool) -> None:
@@ -228,10 +228,12 @@ def test_uninstall_refuses_a_foreign_directory(tool: Tool) -> None:
 
 
 def test_uninstall_removes_a_broken_symlink(tool: Tool) -> None:
-    """A `--link` install survived `uv cache prune`; clean it up anyway."""
-    tool.run("install", "--link")
-    tool.source.unlink()
+    """A link an older version installed, now dangling. Still ours to clean."""
+    tool.run("install")
     manifest = tool.shared() / "SKILL.md"
+    manifest.unlink()
+    manifest.symlink_to(tool.source)
+    tool.source.unlink()
     assert manifest.is_symlink() and not manifest.exists()
 
     result = tool.run("uninstall")
@@ -298,24 +300,6 @@ def test_status_human_lists_every_location(tool: Tool) -> None:
     assert result.exit_code == 0
     assert "Claude Code" in result.output
     assert "installed" not in result.output
-
-
-def test_install_link_failure_falls_back_to_copying(
-    tool: Tool, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Windows without Developer Mode: a copy beats a traceback."""
-
-    def refuse(self, target, **kwargs):
-        raise OSError("symlinks need a privilege you do not have")
-
-    monkeypatch.setattr(Path, "symlink_to", refuse)
-
-    result = tool.run("install", "--link")
-
-    assert result.exit_code == 0
-    manifest = tool.shared() / "SKILL.md"
-    assert not manifest.is_symlink()
-    assert manifest.read_text() == MANIFEST
 
 
 def test_install_wraps_oserror(
