@@ -365,3 +365,33 @@ def test_uninstall_matches_what_install_wrote(tool: Tool) -> None:
         Path(".gemini") / "config" / "skills",
     ):
         assert not (tool.home / relative / NAME).exists()
+
+
+def test_status_calls_a_matching_copy_current(tool: Tool) -> None:
+    tool.run("install")
+
+    result = tool.run("status", "--json")
+
+    rows = json.loads(result.output)["data"]["locations"]
+    shared = next(r for r in rows if r["tool"].startswith("Shared"))
+    assert shared["state"] == "current"
+
+
+def test_status_reports_a_copy_the_package_has_moved_past(tool: Tool) -> None:
+    """Upgrading a package never refreshes a skill already on disk, so
+    presence alone reported `installed` for a copy releases out of date."""
+    tool.run("install")
+    tool.source.write_text(MANIFEST + "a section added since\n")
+
+    result = tool.run("status")
+
+    assert "stale" in result.output
+    assert "skill install" in result.output
+
+
+def test_status_still_answers_for_an_absent_location(tool: Tool) -> None:
+    result = tool.run("status", "--json")
+
+    rows = json.loads(result.output)["data"]["locations"]
+    assert all(row["state"] == "absent" for row in rows)
+    assert all(row["installed"] is False for row in rows)

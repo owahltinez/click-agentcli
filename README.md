@@ -140,7 +140,9 @@ The stable public surface is:
 - `skill_group(name=..., package=...)` for `skill install`, `uninstall`, and
   `status`. Installation refuses an unrelated destination, recognises owned
   broken symlinks an older version left, always copies, and supports `--to`
-  and `--dry-run`. It never links: a link points into the environment, whose
+  and `--dry-run`. `status` compares each installed copy against the packaged
+  one and reports `current` or `stale`, because upgrading a package never
+  refreshes a skill already on disk. It never links: a link points into the environment, whose
   path carries the interpreter version, so a rebuild elsewhere leaves the
   skill silently absent rather than merely stale. With no options it installs everywhere the skill is wanted
   and refreshes its own earlier copies, so plain `install` is the whole

@@ -174,7 +174,31 @@ def _place(source: Path, target: Path, *, name: str) -> str:
     return f"copied  {target}"
 
 
-def _status_rows(home: Path, name: str) -> list[dict[str, Any]]:
+def _state(path: Path, source: Path | None, *, name: str) -> str:
+    """Whether a location holds this skill, and whether it is the current one.
+
+    Presence alone said `installed` for a copy many releases old, because
+    upgrading a package never refreshes a skill already on disk. Comparing the
+    bytes is what makes that drift visible instead of silent.
+    """
+    if not _is_our_skill(path, name=name):
+        return "absent"
+    if source is None or not source.is_file():
+        return "installed"
+    installed = path / "SKILL.md"
+    try:
+        return (
+            "current"
+            if installed.read_bytes() == source.read_bytes()
+            else "stale"
+        )
+    except OSError:
+        return "installed"
+
+
+def _status_rows(
+    home: Path, name: str, source: Path | None = None
+) -> list[dict[str, Any]]:
     """One row per known location, shared first, whether present or not."""
     locations = [("Shared (.agents)", home / SHARED_DIR / name)]
     locations += [
@@ -182,21 +206,31 @@ def _status_rows(home: Path, name: str) -> list[dict[str, Any]]:
         for label, (_, skills) in TOOL_DIRS.items()
     ]
 
-    return [
-        {
-            "tool": label,
-            "path": str(path),
-            "installed": _is_our_skill(path, name=name),
-        }
-        for label, path in locations
-    ]
+    rows = []
+    for label, path in locations:
+        state = _state(path, source, name=name)
+        rows.append(
+            {
+                "tool": label,
+                "path": str(path),
+                "installed": state != "absent",
+                "state": state,
+            }
+        )
+    return rows
 
 
 def _status_lines(payload: dict[str, Any]) -> Iterable[str]:
     """Render `status` for a human: fixed columns, no table drawing."""
     for row in payload["locations"]:
-        mark = "installed" if row["installed"] else "-"
+        mark = "-" if row["state"] == "absent" else row["state"]
         yield f"{mark:<10} {row['tool']:<16} {row['path']}"
+
+    if any(row["state"] == "stale" for row in payload["locations"]):
+        yield (
+            f"A stale copy predates this version. Run "
+            f"`{payload['skill']} skill install` to refresh it."
+        )
 
 
 def skill_group(*, name: str, package: str) -> click.Group:
@@ -340,9 +374,13 @@ def skill_group(*, name: str, package: str) -> click.Group:
     @json_option
     def status_command(json_output: bool) -> None:
         """Show every known location and whether the skill is installed."""
+        try:
+            source: Path | None = packaged_skill(name=name, package=package)
+        except click.ClickException:
+            source = None
         payload = {
             "skill": name,
-            "locations": _status_rows(Path.home(), name),
+            "locations": _status_rows(Path.home(), name, source),
         }
         emit(payload, json_output=json_output, human=_status_lines)
 

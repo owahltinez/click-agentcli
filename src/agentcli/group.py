@@ -67,14 +67,44 @@ class JsonAwareGroup(click.Group):
             **extra,
         )
 
+    def _drift_hint(self, ctx: click.Context, exc: Exception) -> str:
+        """Why a name this caller expected might not exist.
+
+        A caller reading a skill older than the binary asks for a command the
+        binary has since renamed or dropped, and no other failure looks like
+        this. The hint lives here rather than in the skill because the skill
+        is the thing that went stale, while the binary is what was upgraded.
+        """
+        if not isinstance(exc, click.NoSuchOption | click.UsageError):
+            return ""
+        if "No such command" not in str(exc) and not isinstance(
+            exc, click.NoSuchOption
+        ):
+            return ""
+        if "skill" not in self.commands:
+            return ""
+        tool = ctx.find_root().info_name or "this tool"
+        return (
+            f" If this was documented, the installed skill predates this "
+            f"version; run `{tool} skill install`."
+        )
+
     def invoke(self, ctx: click.Context) -> Any:
         try:
             return super().invoke(ctx)
         except click.ClickException as exc:
+            hint = self._drift_hint(ctx, exc)
             # The human path stays click's own, which prints the usage block
             # too: worth more to a person than a uniform shape.
             if not self._json_requested:
+                if hint:
+                    # Re-raised rather than edited: click marks the message
+                    # final, and a UsageError still prints usage and exits 2.
+                    raise click.UsageError(
+                        f"{exc.format_message()}{hint}",
+                        ctx=getattr(exc, "ctx", None),
+                    ) from exc
                 raise
 
-            emit_error(exc.format_message(), json_output=True)
+            emit_error(f"{exc.format_message()}{hint}", json_output=True)
             ctx.exit(exc.exit_code)

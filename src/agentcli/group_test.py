@@ -6,7 +6,7 @@ import click
 import pytest
 from click.testing import CliRunner
 
-from agentcli import JsonAwareGroup, UsageError, emit
+from agentcli import JsonAwareGroup, UsageError, emit, skill_group
 
 
 @click.group(cls=JsonAwareGroup)
@@ -85,3 +85,37 @@ def test_main_accepts_clicks_own_positional_arguments(
         "ok": True,
         "data": {"limit": 10},
     }
+
+
+@click.group(cls=JsonAwareGroup)
+def skilled() -> None:
+    """A tool that ships a skill."""
+
+
+skilled.add_command(go)
+skilled.add_command(skill_group(name="faketool", package="agentcli"))
+
+
+@pytest.mark.parametrize(
+    ("args", "hinted"),
+    [
+        (["go", "--nope"], True),
+        (["nosuchcommand"], True),
+        (["go", "--limit"], False),
+        (["go", "--limit", "-1"], False),
+    ],
+)
+def test_an_unknown_name_suggests_a_stale_skill(args, hinted: bool) -> None:
+    """A caller reading a skill older than the binary asks for a name the
+    binary dropped. No other failure looks like that, so nothing else hints."""
+    result = CliRunner().invoke(skilled, args)
+
+    assert result.exit_code != 0
+    assert ("skill install" in result.output) is hinted
+
+
+def test_a_tool_without_a_skill_suggests_nothing() -> None:
+    result = CliRunner().invoke(cli, ["nosuchcommand"])
+
+    assert result.exit_code != 0
+    assert "skill install" not in result.output
