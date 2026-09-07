@@ -102,26 +102,14 @@ Upgrading the package is the whole workflow:
 uv tool upgrade --all
 ```
 
-Installing a package never used to touch a skill already on disk, so the
-manifest an agent read could sit releases behind the binary it documents with
-nothing to say so, and every upgrade owed a `<tool> skill install` per tool.
-`JsonAwareGroup` now recopies any drifted copy on the way into a command, so
-the next run of the tool puts it right.
+`JsonAwareGroup` rewrites any installed copy of the skill that differs from
+the packaged one, on the way into a command. It only ever rewrites a
+directory that already holds this skill: putting one somewhere new is
+`skill install`. Failures are silent, and `skill` itself is skipped so
+`skill status` still reports drift.
 
-The refresh only ever rewrites a directory that already holds *this* skill.
-Putting a skill somewhere new stays an explicit `skill install`, so an
-uninstall cannot be undone by whatever command runs next, and somebody else's
-skill directory is never touched. It is best effort: an unwritable skills
-directory is not a reason to fail the command that was actually asked for.
-
-`skill` itself is exempt, so `skill status` still reports drift rather than
-silently repairing what it was about to describe. So is any run where the
-caller passes its own argument list rather than letting click read `sys.argv`
--- a consuming project's `CliRunner` tests write nothing under the
-developer's home. Set `AGENTCLI_NO_SKILL_REFRESH=1` to switch it off
-entirely.
-
-A tool whose top-level group is not `JsonAwareGroup` calls it directly:
+Set `AGENTCLI_NO_SKILL_REFRESH=1` to switch it off. A top-level group that
+is not `JsonAwareGroup` asks for the refresh itself:
 
 ```python
 from agentcli import refresh_skill
@@ -171,10 +159,9 @@ The stable public surface is:
 
 - `UsageError`, `RemoteError`, `AssertionFailure`, and `StrictFailure`.
 - `dumps`, `emit`, `emit_error`, `json_option`, and `limit_option`.
-- `JsonAwareGroup` for every consuming tool's top-level group. It also
-  refreshes any drifted copy of the tool's skill on the way into a command.
-- `refresh_skill(name=..., package=...)` for a tool that does not use
-  `JsonAwareGroup` and has to ask for that refresh itself.
+- `JsonAwareGroup` for every consuming tool's top-level group. It also keeps
+  the installed skill in step with the packaged one.
+- `refresh_skill(name=..., package=...)` to do that from another group.
 - `skill_group(name=..., package=...)` for `skill install`, `uninstall`, and
   `status`. Installation refuses an unrelated destination, recognises owned
   broken symlinks an older version left, always copies, and supports `--to`
