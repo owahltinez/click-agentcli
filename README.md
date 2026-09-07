@@ -94,6 +94,41 @@ Add `@json_option` to each command that supports structured output and call
 `emit` once with both the data and its human renderer. `JsonAwareGroup` then
 keeps parse failures structured when `--json` was requested.
 
+## Upgrading
+
+Upgrading the package is the whole workflow:
+
+```sh
+uv tool upgrade --all
+```
+
+Installing a package never used to touch a skill already on disk, so the
+manifest an agent read could sit releases behind the binary it documents with
+nothing to say so, and every upgrade owed a `<tool> skill install` per tool.
+`JsonAwareGroup` now recopies any drifted copy on the way into a command, so
+the next run of the tool puts it right.
+
+The refresh only ever rewrites a directory that already holds *this* skill.
+Putting a skill somewhere new stays an explicit `skill install`, so an
+uninstall cannot be undone by whatever command runs next, and somebody else's
+skill directory is never touched. It is best effort: an unwritable skills
+directory is not a reason to fail the command that was actually asked for.
+
+`skill` itself is exempt, so `skill status` still reports drift rather than
+silently repairing what it was about to describe. So is any run where the
+caller passes its own argument list rather than letting click read `sys.argv`
+-- a consuming project's `CliRunner` tests write nothing under the
+developer's home. Set `AGENTCLI_NO_SKILL_REFRESH=1` to switch it off
+entirely.
+
+A tool whose top-level group is not `JsonAwareGroup` calls it directly:
+
+```python
+from agentcli import refresh_skill
+
+refresh_skill(name="acme", package="acme")
+```
+
 ## Develop this package
 
 ```sh
@@ -136,13 +171,15 @@ The stable public surface is:
 
 - `UsageError`, `RemoteError`, `AssertionFailure`, and `StrictFailure`.
 - `dumps`, `emit`, `emit_error`, `json_option`, and `limit_option`.
-- `JsonAwareGroup` for every consuming tool's top-level group.
+- `JsonAwareGroup` for every consuming tool's top-level group. It also
+  refreshes any drifted copy of the tool's skill on the way into a command.
+- `refresh_skill(name=..., package=...)` for a tool that does not use
+  `JsonAwareGroup` and has to ask for that refresh itself.
 - `skill_group(name=..., package=...)` for `skill install`, `uninstall`, and
   `status`. Installation refuses an unrelated destination, recognises owned
   broken symlinks an older version left, always copies, and supports `--to`
   and `--dry-run`. `status` compares each installed copy against the packaged
-  one and reports `current` or `stale`, because upgrading a package never
-  refreshes a skill already on disk. It never links: a link points into the environment, whose
+  one and reports `current` or `stale`. It never links: a link points into the environment, whose
   path carries the interpreter version, so a rebuild elsewhere leaves the
   skill silently absent rather than merely stale. With no options it installs everywhere the skill is wanted
   and refreshes its own earlier copies, so plain `install` is the whole

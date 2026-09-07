@@ -10,6 +10,7 @@ problem, and a tool that solves it locally is a tool the next one forgets to
 copy.
 """
 
+import os
 import sys
 from collections.abc import Sequence
 from typing import Any, Literal, NoReturn, overload
@@ -17,6 +18,10 @@ from typing import Any, Literal, NoReturn, overload
 import click
 
 from agentcli.output import emit_error
+from agentcli.skill import SkillGroup
+
+# Set to any non-empty value to keep a run from touching the skills on disk.
+NO_REFRESH_ENV = "AGENTCLI_NO_SKILL_REFRESH"
 
 
 class JsonAwareGroup(click.Group):
@@ -59,6 +64,13 @@ class JsonAwareGroup(click.Group):
         arguments = list(sys.argv[1:] if args is None else args)
         self._json_requested = "--json" in arguments
 
+        # Only when this process *is* the tool's command line, which is what
+        # reading `sys.argv` means. A caller passing its own arguments -- an
+        # embedding, or a consumer's `CliRunner` test -- gets no writes under
+        # `~` it never asked for.
+        if args is None:
+            self._refresh_skill(arguments)
+
         return super().main(
             arguments,
             prog_name,
@@ -66,6 +78,28 @@ class JsonAwareGroup(click.Group):
             standalone_mode,
             **extra,
         )
+
+    def _refresh_skill(self, arguments: Sequence[str]) -> None:
+        """Bring already-installed copies of this tool's skill up to date.
+
+        Upgrading a package never touched a skill already on disk, so the copy
+        an agent read could sit releases behind the binary it documents, and
+        nothing said so. Doing it here makes `uv tool upgrade` the whole
+        workflow: no second command per tool to remember.
+
+        Not done for `skill` itself. That group is where drift is reported and
+        acted on, and a `skill status` that silently repaired what it was
+        about to describe would have nothing left to report.
+        """
+        if os.environ.get(NO_REFRESH_ENV):
+            return
+
+        if "skill" in arguments:
+            return
+
+        skill = self.commands.get("skill")
+        if isinstance(skill, SkillGroup):
+            skill.refresh()
 
     def _drift_hint(self, ctx: click.Context, exc: Exception) -> str:
         """Why a name this caller expected might not exist.

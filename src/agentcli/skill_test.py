@@ -18,8 +18,10 @@ from click.testing import CliRunner
 
 from agentcli.skill import (
     SHARED_DIR,
+    SkillGroup,
     detected_tools,
     packaged_skill,
+    refresh_skill,
     skill_group,
 )
 
@@ -395,3 +397,89 @@ def test_status_still_answers_for_an_absent_location(tool: Tool) -> None:
     rows = json.loads(result.output)["data"]["locations"]
     assert all(row["state"] == "absent" for row in rows)
     assert all(row["installed"] is False for row in rows)
+
+
+def test_refresh_updates_a_stale_copy(tool: Tool) -> None:
+    """The whole point: an upgraded package leaves no stale skill behind."""
+    tool.run("install")
+    tool.source.write_text(MANIFEST + "a section added since\n")
+
+    refreshed = refresh_skill(name=NAME, package=NAME, home=tool.home)
+
+    assert refreshed == [tool.shared()]
+    assert (tool.shared() / "SKILL.md").read_text() == tool.source.read_text()
+
+
+def test_refresh_leaves_a_current_copy_alone(tool: Tool) -> None:
+    tool.run("install")
+
+    assert refresh_skill(name=NAME, package=NAME, home=tool.home) == []
+
+
+def test_refresh_never_creates_a_location(tool: Tool) -> None:
+    """Placing a skill somewhere new stays an explicit `skill install`, so an
+    uninstall cannot be undone by the next command that happens to run."""
+    (tool.home / ".claude").mkdir()
+
+    assert refresh_skill(name=NAME, package=NAME, home=tool.home) == []
+    assert not tool.shared().exists()
+    assert not (tool.home / ".claude" / "skills").exists()
+
+
+def test_refresh_leaves_a_foreign_directory_alone(tool: Tool) -> None:
+    """The install guard has to hold for the unattended path too."""
+    target = tool.home / SHARED_DIR / NAME
+    manifest = _install_foreign(target)
+
+    assert refresh_skill(name=NAME, package=NAME, home=tool.home) == []
+    assert manifest.read_text() == FOREIGN
+
+
+def test_refresh_covers_every_known_location(tool: Tool) -> None:
+    """Including a tool since uninstalled: its copy is still one agents read."""
+    (tool.home / ".claude").mkdir()
+    tool.run("install")
+    stale = tool.home / ".cursor" / "skills" / NAME
+    stale.mkdir(parents=True)
+    (stale / "SKILL.md").write_text(MANIFEST)
+    tool.source.write_text(MANIFEST + "a section added since\n")
+
+    refreshed = refresh_skill(name=NAME, package=NAME, home=tool.home)
+
+    assert stale in refreshed
+    assert (tool.home / ".claude" / "skills" / NAME) in refreshed
+    for target in refreshed:
+        assert (target / "SKILL.md").read_text() == tool.source.read_text()
+
+
+def test_refresh_survives_an_unwritable_directory(
+    tool: Tool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A skills directory the user has locked down is their arrangement, not
+    a reason to fail the command they actually ran."""
+    tool.run("install")
+    tool.source.write_text(MANIFEST + "a section added since\n")
+
+    def refuse(source, target):
+        raise OSError(13, "Permission denied")
+
+    monkeypatch.setattr(shutil, "copy2", refuse)
+
+    assert refresh_skill(name=NAME, package=NAME, home=tool.home) == []
+
+
+def test_refresh_survives_a_missing_manifest(tool: Tool) -> None:
+    """Nothing to copy from is nothing to do, not a traceback."""
+    tool.run("install")
+    tool.source.unlink()
+
+    assert refresh_skill(name=NAME, package=NAME, home=tool.home) == []
+
+
+def test_skill_group_carries_its_bound_refresh(tool: Tool) -> None:
+    """How the root group reaches a refresh it knows no name or package for."""
+    tool.run("install")
+    tool.source.write_text(MANIFEST + "a section added since\n")
+
+    assert isinstance(tool.cli, SkillGroup)
+    assert tool.cli.refresh() == [tool.shared()]
