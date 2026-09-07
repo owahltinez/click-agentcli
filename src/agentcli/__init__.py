@@ -17,13 +17,14 @@ from agentcli.exits import (
 from agentcli.group import JsonAwareGroup
 from agentcli.guide import guide_command
 from agentcli.output import dumps, emit, emit_error, json_option, limit_option
-from agentcli.skill import skill_group
+from agentcli.skill import SkillGroup, refresh_skill, skill_group
 
 __all__ = [
     "KINDS",
     "AssertionFailure",
     "JsonAwareGroup",
     "RemoteError",
+    "SkillGroup",
     "StrictFailure",
     "UsageError",
     "candidate",
@@ -36,6 +37,7 @@ __all__ = [
     "macro_options",
     "matches",
     "rank",
+    "refresh_skill",
     "skill_group",
     "unverifiable",
 ]

@@ -94,6 +94,29 @@ Add `@json_option` to each command that supports structured output and call
 `emit` once with both the data and its human renderer. `JsonAwareGroup` then
 keeps parse failures structured when `--json` was requested.
 
+## Upgrading
+
+Upgrading the package is the whole workflow:
+
+```sh
+uv tool upgrade --all
+```
+
+`JsonAwareGroup` rewrites any installed copy of the skill that differs from
+the packaged one, on the way into a command. It only ever rewrites a
+directory that already holds this skill: putting one somewhere new is
+`skill install`. Failures are silent, and `skill` itself is skipped so
+`skill status` still reports drift.
+
+Set `AGENTCLI_NO_SKILL_REFRESH=1` to switch it off. A top-level group that
+is not `JsonAwareGroup` asks for the refresh itself:
+
+```python
+from agentcli import refresh_skill
+
+refresh_skill(name="acme", package="acme")
+```
+
 ## Develop this package
 
 ```sh
@@ -136,13 +159,14 @@ The stable public surface is:
 
 - `UsageError`, `RemoteError`, `AssertionFailure`, and `StrictFailure`.
 - `dumps`, `emit`, `emit_error`, `json_option`, and `limit_option`.
-- `JsonAwareGroup` for every consuming tool's top-level group.
+- `JsonAwareGroup` for every consuming tool's top-level group. It also keeps
+  the installed skill in step with the packaged one.
+- `refresh_skill(name=..., package=...)` to do that from another group.
 - `skill_group(name=..., package=...)` for `skill install`, `uninstall`, and
   `status`. Installation refuses an unrelated destination, recognises owned
   broken symlinks an older version left, always copies, and supports `--to`
   and `--dry-run`. `status` compares each installed copy against the packaged
-  one and reports `current` or `stale`, because upgrading a package never
-  refreshes a skill already on disk. It never links: a link points into the environment, whose
+  one and reports `current` or `stale`. It never links: a link points into the environment, whose
   path carries the interpreter version, so a rebuild elsewhere leaves the
   skill silently absent rather than merely stale. With no options it installs everywhere the skill is wanted
   and refreshes its own earlier copies, so plain `install` is the whole

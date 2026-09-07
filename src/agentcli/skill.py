@@ -8,10 +8,15 @@ directory it can see, with the command to cover those too.
 
 Parameterised by skill name and package because the two hand-written copies
 this replaces had already drifted apart in exactly the guards that matter.
+
+`refresh_skill` closes the gap that made `install` a chore: upgrading a
+package never touched a skill already on disk, so the copy an agent reads
+could sit releases behind the binary it documents.
 """
 
 import shutil
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
+from functools import partial
 from importlib import resources
 from pathlib import Path
 from typing import Any
@@ -71,6 +76,19 @@ def packaged_skill(*, name: str, package: str) -> Path:
 
     looked = ", ".join(str(candidate) for candidate in candidates)
     raise click.ClickException(f"SKILL.md not found; looked in {looked}")
+
+
+def _known_locations(home: Path, name: str) -> list[tuple[str, Path]]:
+    """Every location this tool manages, shared first, present or not.
+
+    One list, because a location missing from one of `status`, `uninstall`,
+    or `refresh_skill` is a copy that is reported but never cleaned, or
+    cleaned but never refreshed.
+    """
+    return [("Shared (.agents)", home / SHARED_DIR / name)] + [
+        (label, home / skills / name)
+        for label, (_, skills) in TOOL_DIRS.items()
+    ]
 
 
 def detected_tools(home: Path) -> dict[str, Path]:
@@ -157,9 +175,8 @@ def _place(source: Path, target: Path, *, name: str) -> str:
     Always a copy. A link points into the environment this CLI was installed
     into, and that path is not stable: it carries the interpreter version, so
     an environment rebuilt on another Python leaves a dangling link and the
-    skill silently disappears. Copying costs a stale skill after an upgrade,
-    which is the louder failure and the cheaper one -- the skill is a router,
-    and the manual it routes to (`<tool> guide`) ships in the binary.
+    skill silently disappears. What a copy used to cost -- a skill left stale
+    by an upgrade -- `refresh_skill` now pays back on the next run.
     """
     refusal = _refusal(target, name=name)
     if refusal is not None:
@@ -200,11 +217,7 @@ def _status_rows(
     home: Path, name: str, source: Path | None = None
 ) -> list[dict[str, Any]]:
     """One row per known location, shared first, whether present or not."""
-    locations = [("Shared (.agents)", home / SHARED_DIR / name)]
-    locations += [
-        (label, home / skills / name)
-        for label, (_, skills) in TOOL_DIRS.items()
-    ]
+    locations = _known_locations(home, name)
 
     rows = []
     for label, path in locations:
@@ -233,7 +246,60 @@ def _status_lines(payload: dict[str, Any]) -> Iterable[str]:
         )
 
 
-def skill_group(*, name: str, package: str) -> click.Group:
+def refresh_skill(
+    *, name: str, package: str, home: Path | None = None
+) -> list[Path]:
+    """Recopy every installed copy of this skill the package has moved past.
+
+    Installing a package never refreshed a skill already on disk, so an agent
+    could read a manifest several releases behind the binary it documents,
+    with nothing to say so. Running this on the way into a command makes the
+    upgrade the whole workflow.
+
+    Only ever touches a directory that already holds *this* skill. Putting a
+    skill somewhere new stays an explicit `skill install`, so this can never
+    resurrect a location the user deliberately cleared.
+
+    Best effort throughout: a package whose manifest cannot be found, or a
+    skills directory that cannot be written, is not a reason to fail the
+    command the caller actually asked for.
+    """
+    try:
+        source = packaged_skill(name=name, package=package)
+    except click.ClickException:
+        return []
+
+    refreshed = []
+    for _, target in _known_locations(home or Path.home(), name):
+        # `stale` is reached only for a directory holding our own skill whose
+        # bytes differ, which is exactly the set worth rewriting.
+        if _state(target, source, name=name) != "stale":
+            continue
+
+        try:
+            shutil.copy2(source, target / "SKILL.md")
+        except OSError:
+            continue
+
+        refreshed.append(target)
+
+    return refreshed
+
+
+class SkillGroup(click.Group):
+    """The `skill` group, carrying the refresh its root group runs.
+
+    The refresh happens on the way into every *other* command, and the root
+    group that runs it there knows neither the skill name nor the package.
+    Carrying the bound call here is how it reaches that code without every
+    consumer wiring it up by hand -- which is the mistake this module exists
+    to stop repeating.
+    """
+
+    refresh: Callable[[], list[Path]]
+
+
+def skill_group(*, name: str, package: str) -> SkillGroup:
     """Build the `skill` command group for one tool.
 
     `name` is both the skill name and the binary that carries it, so it also
@@ -245,7 +311,7 @@ def skill_group(*, name: str, package: str) -> click.Group:
     )
     dry_run_help = "Print what would happen without touching the filesystem."
 
-    @click.group("skill")
+    @click.group("skill", cls=SkillGroup)
     def skill() -> None:
         """Install the packaged Agent Skill so agents can discover this tool."""
 
@@ -339,9 +405,7 @@ def skill_group(*, name: str, package: str) -> click.Group:
         # present: an uninstalled tool can leave a skill behind, and that is
         # exactly what needs removing. Missing ones are skipped quietly.
         if destination is None:
-            targets += [
-                home / skills / name for _, skills in TOOL_DIRS.values()
-            ]
+            targets += [path for _, path in _known_locations(home, name)]
 
         removed = 0
         for target in dict.fromkeys(targets):
@@ -383,5 +447,7 @@ def skill_group(*, name: str, package: str) -> click.Group:
             "locations": _status_rows(Path.home(), name, source),
         }
         emit(payload, json_output=json_output, human=_status_lines)
+
+    skill.refresh = partial(refresh_skill, name=name, package=package)
 
     return skill
