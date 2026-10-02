@@ -281,6 +281,16 @@ def test_detected_tools_needs_the_marker(tool: Tool) -> None:
     assert set(detected_tools(tool.home)) == {"Gemini CLI", "Antigravity"}
 
 
+def test_detected_tools_finds_antigravity_cli(tool: Tool) -> None:
+    (tool.home / ".gemini" / "antigravity-cli").mkdir(parents=True)
+
+    detected = detected_tools(tool.home)
+
+    assert detected["Antigravity CLI"] == (
+        tool.home / ".gemini" / "antigravity-cli" / "skills"
+    )
+
+
 def test_status_json_is_one_object(tool: Tool) -> None:
     tool.run("install")
 

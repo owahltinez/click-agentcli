@@ -34,6 +34,10 @@ TOOL_DIRS: dict[str, tuple[Path, Path]] = {
     "Claude Code": (Path(".claude"), Path(".claude") / "skills"),
     "Gemini CLI": (Path(".gemini"), Path(".gemini") / "skills"),
     "Antigravity": (Path(".gemini"), Path(".gemini") / "config" / "skills"),
+    "Antigravity CLI": (
+        Path(".gemini") / "antigravity-cli",
+        Path(".gemini") / "antigravity-cli" / "skills",
+    ),
     "Cursor": (Path(".cursor"), Path(".cursor") / "skills"),
 }
 
